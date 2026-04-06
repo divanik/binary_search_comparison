@@ -208,7 +208,7 @@ public:
         tail_span_.begin());
   }
 
-  bool search(T query) {
+  __attribute__((noinline)) bool search(T query) {
     if (remaining_size_ > 0 && data_[btree_size_] <= query) {
       return !find_plain_segment(std::span<const T>(tail_span_), query).has_value();
     }
