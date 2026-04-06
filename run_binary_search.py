@@ -6,7 +6,7 @@ import sys
 import uuid
 
 SOURCE = "experiment_binary_search.cpp"
-MODES = ["1", "2"]
+MODES = ["1", "2", "btree"]
 QUERIES_NUMBER = 10_000_000
 QUERIES_SEED = 42
 NS = [1_000_000_000]

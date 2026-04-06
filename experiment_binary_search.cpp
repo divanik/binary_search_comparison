@@ -156,7 +156,7 @@ void build_btree(std::span<const T> input, std::span<T> output) {
   DebugAssert(input.size() == output.size());
   DebugAssert(input.size() % root_size == 0);
   if (input.size() <= root_size) {
-    output.copyFrom(input);
+    std::ranges::copy(input, output.begin());
     return;
   }
   construct_root<T>(input, output.subspan(0, root_size));
@@ -203,22 +203,16 @@ public:
     tail_span_ = std::span<T>(data_ + btree_size_, remaining_size_);
     build_btree<T, root_size>(std::span<const T>(numbers).subspan(0, btree_size_),
                               btree_span_);
-    tail_span_.copyFrom(
-        std::span<const T>(numbers).subspan(btree_size_, remaining_size_));
+    std::ranges::copy(
+        std::span<const T>(numbers).subspan(btree_size_, remaining_size_),
+        tail_span_.begin());
   }
 
-  bool searchImpl(T query) {
+  bool search(T query) {
     if (remaining_size_ > 0 && data_[btree_size_] <= query) {
-      return !find_plain_segment(tail_span_.to_const(), query).has_value();
+      return !find_plain_segment(std::span<const T>(tail_span_), query).has_value();
     }
-    return !find_in_btree_iterative<T, root_size>(btree_span_.to_const(), query);
-  }
-
-  bool search(T query) override {
-    if (remaining_size_ > 0 && data_[btree_size_] <= query) {
-      return !find_plain_segment(tail_span_.to_const(), query).has_value();
-    }
-    return !find_in_btree_iterative<T, root_size>(btree_span_.to_const(), query);
+    return !find_in_btree_iterative<T, root_size>(std::span<const T>(btree_span_), query);
   }
 
 private:
