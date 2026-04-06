@@ -6,7 +6,7 @@ import sys
 import uuid
 
 SOURCE = "experiment_binary_search.cpp"
-MODES = ["1"]
+MODES = ["btree"]
 QUERIES_NUMBER = 10_000_000
 QUERIES_SEED = 42
 NS = [1_000_000_000]
@@ -18,41 +18,30 @@ BINARIES_DIR = "./binaries"
 ASM_FLAGS = ["-std=c++23", "-fomit-frame-pointer", "-fno-exceptions", "-fno-rtti", "-O3"]
 
 
+ALIGN_VARIANTS = [
+    ("base",            ["-std=c++23", "-O3"]),
+    ("+ static",        ["-std=c++23", "-O3", "-static"]),
+    ("+ omit-fp",       ["-std=c++23", "-O3", "-fomit-frame-pointer"]),
+    ("+ no-exceptions", ["-std=c++23", "-O3", "-fno-exceptions"]),
+    ("+ no-rtti",       ["-std=c++23", "-O3", "-fno-rtti"]),
+    ("all slow flags",  ["-std=c++23", "-O3", "-static", "-fomit-frame-pointer", "-fno-exceptions", "-fno-rtti"]),
+    ("all + align",     ["-std=c++23", "-O3", "-static", "-fomit-frame-pointer", "-fno-exceptions", "-fno-rtti", "-falign-loops=32"]),
+]
+
+
 def make_compilers(run_dir):
-    return [
-        # {
-        #     "name": "clang++-22",
-        #     "cmd": "clang++-22",
-        #     "flags": ["-std=c++23", "-static", "-fomit-frame-pointer", "-fno-exceptions", "-fno-rtti", "-O3"],
-        #     "binary": f"{run_dir}/experiment_binary_search_clang",
-        #     "asm": f"{run_dir}/experiment_binary_search_clang.s",
-        #     "disasm": f"{run_dir}/experiment_binary_search_clang.asm",
-        # },
-        # {
-        #     "name": "g++-14",
-        #     "cmd": "g++-14",
-        #     "flags": ["-std=c++23", "-static", "-fomit-frame-pointer", "-fno-exceptions", "-fno-rtti", "-O3"],
-        #     "binary": f"{run_dir}/experiment_binary_search_gcc14",
-        #     "asm": f"{run_dir}/experiment_binary_search_gcc14.s",
-        #     "disasm": f"{run_dir}/experiment_binary_search_gcc14.asm",
-        # },
-        {
-            "name": "g++-13",
+    compilers = []
+    for name, flags in ALIGN_VARIANTS:
+        slug = name.replace("+", "p").replace(" ", "_").replace("-", "_")
+        compilers.append({
+            "name": name,
             "cmd": "g++-13",
-            "flags": ["-std=c++23", "-static", "-fomit-frame-pointer", "-fno-exceptions", "-fno-rtti", "-O3"],
-            "binary": f"{run_dir}/experiment_binary_search_gcc13",
-            "asm": f"{run_dir}/experiment_binary_search_gcc13.s",
-            "disasm": f"{run_dir}/experiment_binary_search_gcc13.asm",
-        },
-        {
-            "name": "g++-13-align",
-            "cmd": "g++-13",
-            "flags": ["--std=c++23", "-falign-functions=32", "-falign-loops=32", "-O3"],
-            "binary": f"{run_dir}/experiment_binary_search_gcc13_align_loops",
-            "asm": f"{run_dir}/experiment_binary_search_gcc13_align_loops.s",
-            "disasm": f"{run_dir}/experiment_binary_search_gcc13_align_loops.asm",
-        }
-    ]
+            "flags": flags,
+            "binary": f"{run_dir}/exp_{slug}",
+            "asm": f"{run_dir}/exp_{slug}.s",
+            "disasm": f"{run_dir}/exp_{slug}.asm",
+        })
+    return compilers
 
 
 def compile(compiler):

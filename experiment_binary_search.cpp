@@ -181,6 +181,9 @@ std::optional<size_t> find_plain_segment(std::span<const T> data, T target) {
 template <typename T, size_t root_size>
 bool find_in_btree_iterative(std::span<const T> data, T target) {
     while (data.size() > root_size) {
+        for (size_t i = 1; i <= root_size; ++i) {
+            __builtin_prefetch(get_son_subspan_in_output(data, root_size, i).data(), 0, 0);
+        }
         auto value = find_plain_segment(data.subspan(0, root_size), target);
         if (!value.has_value()) {
             return true;
