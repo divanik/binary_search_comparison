@@ -318,7 +318,7 @@ int main(int argc, char **argv) {
     std::cerr << "Searcher built" << std::endl;
     run_benchmark(searcher, queries);
   } else if (mode == "btree") {
-    STLSearcher searcher(numbers);
+    BTreeSearcher<int64_t, 8> searcher(numbers);
     std::cerr << "Searcher built" << std::endl;
     run_benchmark(searcher, queries);
   } else {
