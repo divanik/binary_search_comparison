@@ -8,6 +8,10 @@
 #include <iostream>
 #include <random>
 #include <vector>
+#include <span>
+#include <optional>
+
+#define DebugAssert(x) 0
 
 struct Clock {
   Clock(int clk_id) : clock_id(clk_id) { reset(); }
@@ -81,6 +85,148 @@ public:
 
 private:
   std::vector<int64_t> numbers_;
+};
+
+
+__attribute__((always_inline)) inline size_t
+get_prefix_size(size_t total_size, size_t root_size, size_t index) {
+  DebugAssert(total_size >= root_size);
+  DebugAssert(index <= root_size);
+  DebugAssert(0 <= index);
+  DebugAssert(total_size % root_size == 0);
+  size_t to_divide = total_size - root_size;
+  return (to_divide * index / root_size / root_size) * root_size;
+}
+
+template <typename T>
+__attribute__((always_inline)) inline void construct_root(std::span<const T> input,
+                                                          std::span<T> root_output) {
+  DebugAssert(root_output.size());
+  DebugAssert(input.size() >= root_output.size());
+  DebugAssert(input.size() % root_output.size() == 0);
+  for (size_t i = 0; i < root_output.size(); ++i) {
+    auto current_length = get_prefix_size(input.size(), root_output.size(), i);
+    root_output[i] = input[current_length + i];
+  }
+}
+
+template <typename T>
+__attribute__((always_inline)) std::span<T>
+get_son_subspan_in_input(std::span<T> input, size_t root_size, size_t root_index) {
+  DebugAssert(input.size() >= root_size);
+  DebugAssert(root_index <= root_size);
+  DebugAssert(root_index > 0);
+  DebugAssert(input.size() >= root_size);
+  DebugAssert(input.size() % root_size == 0);
+  size_t previous_length =
+      get_prefix_size(input.size(), root_size, root_index - 1);
+  size_t current_length = get_prefix_size(input.size(), root_size, root_index);
+  return input.subspan(root_index + previous_length,
+                       current_length - previous_length);
+}
+
+template <typename T>
+__attribute__((always_inline)) std::span<T>
+get_son_subspan_in_output(std::span<T> output, size_t root_size, size_t root_index) {
+  DebugAssert(output.size() >= root_size);
+  DebugAssert(root_index <= root_size);
+  DebugAssert(0 < root_index);
+  DebugAssert(output.size() >= root_size);
+  DebugAssert(output.size() % root_size == 0);
+  size_t previous_length =
+      get_prefix_size(output.size(), root_size, root_index - 1);
+  size_t current_length = get_prefix_size(output.size(), root_size, root_index);
+  return output.subspan(root_size + previous_length,
+                        current_length - previous_length);
+}
+
+__attribute__((always_inline)) size_t
+get_compose_segment(size_t total_size, size_t parent_segment_number,
+                    size_t son_segment_number, size_t root_size) {
+  DebugAssert(parent_segment_number <= root_size);
+  return (parent_segment_number == 0)
+             ? 0
+             : get_prefix_size(total_size, root_size,
+                               parent_segment_number - 1) +
+                   parent_segment_number + son_segment_number;
+}
+
+template <typename T, size_t root_size>
+void build_btree(std::span<const T> input, std::span<T> output) {
+  DebugAssert(input.size() == output.size());
+  DebugAssert(input.size() % root_size == 0);
+  if (input.size() <= root_size) {
+    output.copyFrom(input);
+    return;
+  }
+  construct_root<T>(input, output.subspan(0, root_size));
+  for (size_t i = 1; i <= root_size; ++i) {
+    build_btree<T, root_size>(get_son_subspan_in_input(input, root_size, i),
+                              get_son_subspan_in_output(output, root_size, i));
+  }
+}
+
+template <typename T>
+std::optional<size_t> find_plain_segment(std::span<const T> data, T target) {
+  for (size_t i = 0; i < data.size(); ++i) {
+    if (data[i] == target) {
+      return std::nullopt;
+    } else if (data[i] > target) {
+      return i;
+    }
+  }
+  return data.size();
+}
+
+template <typename T, size_t root_size>
+bool find_in_btree_iterative(std::span<const T> data, T target) {
+    while (data.size() > root_size) {
+        auto value = find_plain_segment(data.subspan(0, root_size), target);
+        if (!value.has_value()) {
+            return true;
+        }
+        if (value.value() == 0) {
+            return false;
+        }
+        data = get_son_subspan_in_output(data, root_size, value.value());
+    }
+    return !find_plain_segment(data, target).has_value();
+}
+
+template <typename T, size_t root_size> class BTreeSearcher {
+public:
+  BTreeSearcher(const std::vector<T> &numbers) {
+    btree_size_ = numbers.size() / root_size * root_size;
+    remaining_size_ = numbers.size() - btree_size_;
+    data_ = static_cast<T *>(aligned_alloc(4096, numbers.size() * sizeof(T)));
+    btree_span_ = std::span<T>(data_, btree_size_);
+    tail_span_ = std::span<T>(data_ + btree_size_, remaining_size_);
+    build_btree<T, root_size>(std::span<const T>(numbers).subspan(0, btree_size_),
+                              btree_span_);
+    tail_span_.copyFrom(
+        std::span<const T>(numbers).subspan(btree_size_, remaining_size_));
+  }
+
+  bool searchImpl(T query) {
+    if (remaining_size_ > 0 && data_[btree_size_] <= query) {
+      return !find_plain_segment(tail_span_.to_const(), query).has_value();
+    }
+    return !find_in_btree_iterative<T, root_size>(btree_span_.to_const(), query);
+  }
+
+  bool search(T query) override {
+    if (remaining_size_ > 0 && data_[btree_size_] <= query) {
+      return !find_plain_segment(tail_span_.to_const(), query).has_value();
+    }
+    return !find_in_btree_iterative<T, root_size>(btree_span_.to_const(), query);
+  }
+
+private:
+  T *data_;
+  size_t btree_size_;
+  size_t remaining_size_;
+  std::span<T> btree_span_;
+  std::span<T> tail_span_;
 };
 
 std::vector<int64_t> get_or_create_numbers_array(size_t n, const char *path) {
@@ -168,6 +314,10 @@ int main(int argc, char **argv) {
     std::cerr << "Searcher built" << std::endl;
     run_benchmark(searcher, queries);
   } else if (mode == "stl") {
+    STLSearcher searcher(numbers);
+    std::cerr << "Searcher built" << std::endl;
+    run_benchmark(searcher, queries);
+  } else if (mode == "btree") {
     STLSearcher searcher(numbers);
     std::cerr << "Searcher built" << std::endl;
     run_benchmark(searcher, queries);
