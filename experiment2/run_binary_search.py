@@ -12,7 +12,7 @@ SOURCES = [
 MODES = ["1"]
 QUERIES_NUMBER = 10_000_000
 QUERIES_SEED = 42
-NS = [1_000_000_000]
+NS = [100_000_000]
 PATH = "data/numbers_1e9"
 
 BINARIES_DIR = "./binaries"
@@ -101,9 +101,23 @@ def main():
             v1 = vals.get(source_names[0])
             v2 = vals.get(source_names[1])
             try:
-                ratio = f"{float(v2) / float(v1):.4f}"
-            except (TypeError, ValueError, ZeroDivisionError):
-                ratio = "N/A"
+                f1 = float(v1)
+            except (TypeError, ValueError):
+                ratio = f"v1 not a number: {v1}"
+                row += f"  {ratio:>14}"
+                print(row)
+                continue
+            try:
+                f2 = float(v2)
+            except (TypeError, ValueError):
+                ratio = f"v2 not a number: {v2}"
+                row += f"  {ratio:>14}"
+                print(row)
+                continue
+            if f1 == 0:
+                ratio = "v1 is zero"
+            else:
+                ratio = f"{f2 / f1:.4f}"
             row += f"  {ratio:>14}"
         print(row)
 
