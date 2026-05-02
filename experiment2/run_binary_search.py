@@ -13,7 +13,7 @@ MODES = ["1"]
 QUERIES_NUMBER = 10_000_000
 QUERIES_SEED = 42
 NS = [1_000_000_000]
-PATH = "../data/numbers_1e9"
+PATH = "data/numbers_1e9"
 
 BINARIES_DIR = "./binaries"
 
