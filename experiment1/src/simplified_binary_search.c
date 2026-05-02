@@ -5,6 +5,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#include <unistd.h>
+
 
 size_t lower_bound1(const int64_t *numbers, size_t n, int64_t query);
 size_t lower_bound2(const int64_t *numbers, size_t n, int64_t query);
@@ -75,28 +77,58 @@ static int64_t *read_file(const char *path, size_t *out_n) {
     printf("%.8f\n", elapsed_ns / (double)queries_n); \
 } while (0)
 
+
+#define RUN_BENCHMARK_PERF(search_fn) do { \
+    size_t answer = 0; \
+    for (size_t i = 0; i < queries_n; ++i) { \
+        size_t got = search_fn(numbers, n, queries[i]); \
+        assert(got == lower_bound_check(numbers, n, queries[i])); \
+        answer += got; \
+    } \
+    fprintf(stderr, "PID: %d\n", getpid()); \
+    sleep(30); \
+    Clock cpu_clock = clock_new(CLOCK_PROCESS_CPUTIME_ID); \
+    for (size_t i = 0; i < queries_n; ++i) \
+        answer += search_fn(numbers, n, queries[i]); \
+    size_t elapsed_ns = clock_elapsed_ns(&cpu_clock); \
+    printf("%.8f\n", elapsed_ns / (double)queries_n); \
+} while (0)
+
 int main(int argc, char **argv) {
-    assert(argc == 4);
+    assert(argc == 4 || argc == 5);
 
     const char *mode = argv[1];
     const char *data_file = argv[2];
     const char *queries_file = argv[3];
 
+    int perf = 0;
+    if (argc == 5) {
+        perf = 1;
+    }
+
     size_t n, queries_n;
     int64_t *numbers = read_file(data_file, &n);
     int64_t *queries = read_file(queries_file, &queries_n);
 
-    fprintf(stderr, "Input loaded\n");
-
-    if (strcmp(mode, "1") == 0) {
-        RUN_BENCHMARK(lower_bound1);
-    } else if (strcmp(mode, "2") == 0) {
-        RUN_BENCHMARK(lower_bound2);
+    if (perf) {
+        if (strcmp(mode, "1") == 0) {
+            RUN_BENCHMARK_PERF(lower_bound1);
+        } else if (strcmp(mode, "2") == 0) {
+            RUN_BENCHMARK_PERF(lower_bound2);
+        } else {
+            fprintf(stderr, "Unknown mode: %s\n", mode);
+            assert(0);
+        }
     } else {
-        fprintf(stderr, "Unknown mode: %s\n", mode);
-        assert(0);
+        if (strcmp(mode, "1") == 0) {
+            RUN_BENCHMARK(lower_bound1);
+        } else if (strcmp(mode, "2") == 0) {
+            RUN_BENCHMARK(lower_bound2);
+        } else {
+            fprintf(stderr, "Unknown mode: %s\n", mode);
+            assert(0);
+        }
     }
-
     free(numbers);
     free(queries);
     return 0;

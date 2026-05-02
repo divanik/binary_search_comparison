@@ -3,9 +3,10 @@
 import os
 import subprocess
 import sys
-import tempfile
+import uuid
 
 SRC_DIR = os.path.join(os.path.dirname(__file__), "src")
+BINARIES_DIR = os.path.join(os.path.dirname(__file__), "binaries")
 
 N = 1_000_000_000
 QUERIES_NUMBER = 10_000_000
@@ -57,7 +58,7 @@ def generate_data(gen_bin, n, queries_number, queries_seed, numbers_path, querie
         return
 
     cmd = [gen_bin, str(n), str(queries_number), str(queries_seed), numbers_path, queries_path]
-    print(f"Generating data (n={n}, queries={queries_number}, seed={QUERIES_SEED})")
+    print(f"Generating data (n={n}, queries={queries_number}, seed={queries_seed})")
     result = run(cmd)
     if result.stderr:
         print(f"  {result.stderr.strip()}")
@@ -65,10 +66,13 @@ def generate_data(gen_bin, n, queries_number, queries_seed, numbers_path, querie
 
 def benchmark(bench_bin, mode, numbers_path, queries_path):
     cmd = [bench_bin, mode, numbers_path, queries_path]
-    result = subprocess.run(cmd, capture_output=True, text=True)
-    if result.returncode != 0:
-        return None, result.stderr.strip()
-    return result.stdout.strip(), None
+    print(f"Running: {' '.join(cmd)}")
+    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    print(f"PID: {proc.pid}")
+    stdout, stderr = proc.communicate()
+    if proc.returncode != 0:
+        return None, stderr.strip()
+    return stdout.strip(), None
 
 
 def main():
@@ -78,25 +82,30 @@ def main():
     parser.add_argument("--queries-path", default=DEFAULT_QUERIES_PATH)
     args = parser.parse_args()
 
-    with tempfile.TemporaryDirectory() as tmpdir:
-        bench_bin = os.path.join(tmpdir, "bench")
-        gen_bin = os.path.join(tmpdir, "gen")
+    run_id = str(uuid.uuid4())
+    run_dir = os.path.join(BINARIES_DIR, run_id)
+    os.makedirs(run_dir)
+    print(f"Run ID: {run_id}")
+    print(f"Run dir: {run_dir}\n")
 
-        compile_bench(bench_bin)
-        compile_gen(gen_bin)
-        print()
+    bench_bin = os.path.join(run_dir, "bench")
+    gen_bin = os.path.join(run_dir, "gen")
 
-        generate_data(gen_bin, N, QUERIES_NUMBER, QUERIES_SEED, args.numbers_path, args.queries_path)
-        print()
+    compile_bench(bench_bin)
+    compile_gen(gen_bin)
+    print()
 
-        print(f"{'mode':<6} {'n':>12}  {'ns/query':>12}")
-        print("-" * 36)
-        for mode in MODES:
-            ns_per_query, err = benchmark(bench_bin, mode, args.numbers_path, args.queries_path)
-            if err is not None:
-                print(f"{mode:<6} {N:>12}  ERROR: {err}")
-            else:
-                print(f"{mode:<6} {N:>12}  {ns_per_query:>12}")
+    generate_data(gen_bin, N, QUERIES_NUMBER, QUERIES_SEED, args.numbers_path, args.queries_path)
+    print()
+
+    print(f"{'mode':<6} {'n':>12}  {'ns/query':>12}")
+    print("-" * 36)
+    for mode in MODES:
+        ns_per_query, err = benchmark(bench_bin, mode, args.numbers_path, args.queries_path)
+        if err is not None:
+            print(f"{mode:<6} {N:>12}  ERROR: {err}")
+        else:
+            print(f"{mode:<6} {N:>12}  {ns_per_query:>12}")
 
 
 if __name__ == "__main__":
