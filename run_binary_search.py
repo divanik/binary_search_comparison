@@ -6,42 +6,45 @@ import sys
 import uuid
 
 SOURCE = "experiment_binary_search.cpp"
-MODES = ["btree"]
-QUERIES_NUMBER = 10_000_000
+MODES = ["1", "2", "btree", "btree_avx"]
+QUERIES_NUMBER = 2_000_000
 QUERIES_SEED = 42
-NS = [1_000_000_000]
-PATH = "./data/numbers_1e9"
+NS = [4_000_000_000]
+PATH = "./data/numbers_4e9"
 
 BINARIES_DIR = "./binaries"
 
 # Flags for assembly output: drop -static (linker-only flag)
-ASM_FLAGS = ["-std=c++23", "-fomit-frame-pointer", "-fno-exceptions", "-fno-rtti", "-O3"]
-
-
-ALIGN_VARIANTS = [
-    ("base",            ["-std=c++23", "-O3"]),
-    ("+ static",        ["-std=c++23", "-O3", "-static"]),
-    ("+ omit-fp",       ["-std=c++23", "-O3", "-fomit-frame-pointer"]),
-    ("+ no-exceptions", ["-std=c++23", "-O3", "-fno-exceptions"]),
-    ("+ no-rtti",       ["-std=c++23", "-O3", "-fno-rtti"]),
-    ("all slow flags",  ["-std=c++23", "-O3", "-static", "-fomit-frame-pointer", "-fno-exceptions", "-fno-rtti"]),
-    ("all + align",     ["-std=c++23", "-O3", "-static", "-fomit-frame-pointer", "-fno-exceptions", "-fno-rtti", "-falign-loops=32"]),
-]
+ASM_FLAGS = ["-std=c++23", "-O3"]
 
 
 def make_compilers(run_dir):
-    compilers = []
-    for name, flags in ALIGN_VARIANTS:
-        slug = name.replace("+", "p").replace(" ", "_").replace("-", "_")
-        compilers.append({
-            "name": name,
+    return [
+        {
+            "name": "clang++-22",
+            "cmd": "clang++-22",
+            "flags": ["-std=c++23", "-O3"],
+            "binary": f"{run_dir}/experiment_binary_search_clang",
+            "asm": f"{run_dir}/experiment_binary_search_clang.s",
+            "disasm": f"{run_dir}/experiment_binary_search_clang.asm",
+        },
+        {
+            "name": "g++-14",
+            "cmd": "g++-14",
+            "flags": ["-std=c++23", "-O3"],
+            "binary": f"{run_dir}/experiment_binary_search_gcc14",
+            "asm": f"{run_dir}/experiment_binary_search_gcc14.s",
+            "disasm": f"{run_dir}/experiment_binary_search_gcc14.asm",
+        },
+        {
+            "name": "g++-13",
             "cmd": "g++-13",
-            "flags": flags,
-            "binary": f"{run_dir}/exp_{slug}",
-            "asm": f"{run_dir}/exp_{slug}.s",
-            "disasm": f"{run_dir}/exp_{slug}.asm",
-        })
-    return compilers
+            "flags": ["-std=c++23", "-O3"],
+            "binary": f"{run_dir}/experiment_binary_search_gcc13",
+            "asm": f"{run_dir}/experiment_binary_search_gcc13.s",
+            "disasm": f"{run_dir}/experiment_binary_search_gcc13.asm",
+        },
+    ]
 
 
 def compile(compiler):
